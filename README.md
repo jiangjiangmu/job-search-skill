@@ -33,20 +33,48 @@ job-search-skill/
 │   ├── 投递追踪.md
 │   ├── 话术库/已发送记录.md
 │   └── 岗位分析/已分析岗位/          ← 已 gitignore
-├── scripts/                         ← 执行层（预留）
-└── tests/test_privacy.py            ← 泄密哨兵，提交前必跑
+├── scripts/                         ← 确定性工具链（纯 stdlib，可单独运行）
+│   ├── jd_filter.py                 ← JD 预筛：抽取+评分+红旗
+│   ├── funnel_report.py             ← 投递漏斗周报
+│   ├── privacy_scan.py              ← 泄密哨兵 CLI（规则外置）
+│   └── privacy_rules.json           ← 哨兵规则（正则/范围可扩展）
+└── tests/                           ← 29 个用例
+    ├── test_jd_filter.py
+    ├── test_funnel_report.py
+    └── test_privacy.py              ← 哨兵自测 + 仓库集成扫描
 ```
 
-## 隐私设计（核心工程点）
+## 分层设计（核心工程点）
 
-求职数据是高敏个人信息：公司名、薪资、HR 对话、通勤范围全是谈判底牌。本仓库三层防线：
+**语义判断归 Agent，可规则化的环节归代码**——这是本仓库的架构主张：
+
+| 层 | 承担 | 载体 |
+|---|---|---|
+| Agent 语义层 | 理解 JD、写话术、做判断 | `skills/` 三技能 + `references/` 契约 |
+| 代码确定性层 | 薪资/年限/学历抽取、评分、统计、泄密扫描 | `scripts/` 纯 stdlib 工具链 + 29 个测试 |
+
+```bash
+# JD 预筛：薪资/城市/年限/学历抽取 + 关键词命中 + 红旗 + 评分
+python scripts/jd_filter.py jd.txt --years 4 --education 大专 --city 深圳
+
+# 投递漏斗周报：周投递量 / 回复率 / 面试转化率
+python scripts/funnel_report.py
+
+# 泄密哨兵：扫描受保护范围，命中 PII 退出码 1（可直接进 CI）
+python scripts/privacy_scan.py
+```
+
+## 隐私设计（三层防线）
+
+求职数据是高敏个人信息：公司名、薪资、HR 对话、通勤范围全是谈判底牌。
 
 1. **模板与数据分离** —— `references/` 只放模板与策略，真实数据只允许写进 `data/`
 2. **gitignore 防误提交** —— `data/岗位分析/已分析岗位/` 默认忽略；fork 自用时建议把 `data/投递追踪.md`、`data/话术库/已发送记录.md` 一并忽略，或改用 `.local.md` 后缀
-3. **泄密哨兵** —— `tests/test_privacy.py` 用正则扫描手机号/身份证号/邮箱/本机绝对路径，`skills/`、`references/` 及根文件零容忍，命中即测试失败：
+3. **泄密哨兵** —— `scripts/privacy_scan.py`：规则外置 `privacy_rules.json`，正则扫描手机号/身份证号/邮箱/本机绝对路径，`skills/`、`references/`、`scripts/` 及根文件零容忍，命中即非零退出码，可直接接 CI：
 
 ```bash
-python tests/test_privacy.py
+python scripts/privacy_scan.py          # text 报告
+python scripts/privacy_scan.py --format json
 ```
 
 ## 快速开始
@@ -70,4 +98,4 @@ python tests/test_privacy.py
 
 ## 版本
 
-v0.1.0 · 见 [CHANGELOG-0.1.0.md](CHANGELOG-0.1.0.md)
+v0.2.0 · 见 [CHANGELOG-0.2.0.md](CHANGELOG-0.2.0.md) · 历史版本 [0.1.0](CHANGELOG-0.1.0.md)

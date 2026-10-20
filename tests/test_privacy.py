@@ -1,50 +1,62 @@
-"""泄密哨兵：提交/发布前检查敏感信息。
+"""泄密哨兵自测：用虚构 PII 验证扫描器本身，再对仓库做一次集成扫描。
 
-用法（仓库根目录）：
-    python tests/test_privacy.py
-
-规则：个人求职数据只允许出现在 data/ 下；
-skills/、references/ 及根文件出现 PII（手机号/身份证号/邮箱）或本机绝对路径，测试即失败。
+注意：本文件里的 PII 全部是虚构样例——tests/ 不在
+privacy_rules.json 的保护范围内，专门用来测哨兵。
 """
-import re
-import pathlib
+import sys
+import tempfile
 import unittest
+from pathlib import Path
 
-# PII 模式：完整手机号、身份证号、邮箱
-PATTERNS = [
-    (re.compile(r"1[3-9]\d{9}"), "手机号"),
-    (re.compile(r"\d{17}[\dXx]"), "身份证号"),
-    (re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"), "邮箱"),
-]
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / "scripts"))
 
-GUARDED_DIRS = ["skills", "references"]
-ROOT_FILES = ["README.md", "CHANGELOG-0.1.0.md", ".codex-plugin/plugin.json"]
+import privacy_scan  # noqa: E402
+
+RAW, PATTERNS = privacy_scan.load_rules(privacy_scan.DEFAULT_RULES)
 
 
-def guarded_files():
-    for d in GUARDED_DIRS:
-        for f in pathlib.Path(d).rglob("*.md"):
-            yield f
-    for name in ROOT_FILES:
-        p = pathlib.Path(name)
-        if p.exists():
-            yield p
+class TestScanner(unittest.TestCase):
+    def _scan_tmp(self, content):
+        with tempfile.TemporaryDirectory() as td:
+            f = Path(td) / "sample.md"
+            f.write_text(content, encoding="utf-8")
+            return privacy_scan.scan_file(f, PATTERNS,
+                                          RAW.get("blocked_strings", []))
+
+    def test_detects_phone(self):
+        vs = self._scan_tmp("联系电话：13800138000，欢迎咨询")
+        self.assertTrue(any(v["id"] == "phone" for v in vs))
+
+    def test_detects_id_card(self):
+        vs = self._scan_tmp("证件号 11010119900307867X")
+        self.assertTrue(any(v["id"] == "id_card" for v in vs))
+
+    def test_detects_email(self):
+        vs = self._scan_tmp("简历投递：demo@example.com")
+        self.assertTrue(any(v["id"] == "email" for v in vs))
+
+    def test_detects_abs_path(self):
+        vs = self._scan_tmp("运行目录 D:\\demo\\repo")
+        self.assertTrue(any(v["id"] == "abs_path" for v in vs))
+
+    def test_clean_file_passes(self):
+        vs = self._scan_tmp("普通技术文本：AI Agent、RAG、MCP，无任何隐私。")
+        self.assertEqual(vs, [])
+
+    def test_rules_json_shape(self):
+        for key in ("patterns", "guarded"):
+            self.assertIn(key, RAW)
+        ids = {p["id"] for p in RAW["patterns"]}
+        self.assertLessEqual({"phone", "id_card", "email"}, ids)
 
 
-class TestPrivacy(unittest.TestCase):
-    def test_guarded_files_no_pii(self):
-        """受保护文件里不许出现手机号/身份证号/邮箱"""
-        for f in guarded_files():
-            text = f.read_text(encoding="utf-8")
-            for pat, name in PATTERNS:
-                m = pat.search(text)
-                self.assertIsNone(m, f"{f} 含疑似{name}: {m and m.group()}")
-
-    def test_guarded_files_no_absolute_paths(self):
-        """公开仓库不带本机绝对路径"""
-        for f in guarded_files():
-            text = f.read_text(encoding="utf-8")
-            self.assertNotIn("E:\\", text, f"{f} 含本机绝对路径")
+class TestRepoClean(unittest.TestCase):
+    def test_repo_guarded_files_clean(self):
+        """集成扫描：公开范围零违规。"""
+        report = privacy_scan.scan_repo(REPO, RAW, PATTERNS)
+        self.assertGreater(report["scanned_files"], 10)
+        self.assertEqual(report["violations"], [])
 
 
 if __name__ == "__main__":
