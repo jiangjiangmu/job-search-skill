@@ -1,0 +1,25 @@
+{
+  "name": "job-search-skill",
+  "version": "0.1.0",
+  "description": "AI-assisted job search: position discovery, analysis, matching, communication scripts, and application tracking.",
+  "author": {
+    "name": "YD"
+  },
+  "contributors": [
+    {
+      "name": "黄学姐",
+      "role": "辅助开发",
+      "contributions": ["话术库试用反馈", "文档校对", "求职流程测试"]
+    }
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "AI 求职工作台",
+    "shortDescription": "搜岗位、分析匹配、生成话术、追踪投递",
+    "longDescription": "job-search-skill 提供一条完整的求职工作流：岗位搜索与筛选、基于能力画像的匹配分析、HR 沟通话术生成、投递状态追踪。支持中英文双语操作。",
+    "developerName": "YD",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "Use $job-search-skill, 打开求职工作台，开始搜岗或分析岗位。"
+  }
+}

@@ -1,0 +1,13 @@
+# 个人求职数据防误提交
+# fork 自用时建议扩大忽略范围：data/投递追踪.md、data/话术库/已发送记录.md
+data/岗位分析/已分析岗位/*
+!data/岗位分析/已分析岗位/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+
+# 系统杂项
+Thumbs.db
+Desktop.ini
+~$*
